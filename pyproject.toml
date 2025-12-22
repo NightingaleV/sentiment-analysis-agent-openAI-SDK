@@ -1,0 +1,95 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sentimant-analysis-agent"
+version = "0.1.0"
+description = "Agentic multi-agent system for stock analysis (insider trading, fundamentals, trends, sentiment)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "httpx>=0.28.1",
+    "pandas>=2.2.3",
+    "pydantic>=2.11.5",
+]
+
+# [project.scripts]
+# sentimant-analysis-agent = "sentimant_analysis_agent.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sentimant_analysis_agent"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/sentimant_analysis_agent/**",
+    "/README.md",
+    "/pyproject.toml",
+]
+
+[tool.black]
+line-length = 120
+skip-string-normalization = true  # common gentle tweak
+skip-magic-trailing-comma = true
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "ipykernel>=6.29.5",
+    "pylint>=3.3.2",
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.24.0",
+]
+
+[tool.pylint.main]
+jobs = 0
+ignore = ["hooks", "setup.py", "tests", "examples", "venv", "docs", "node_modules", "static", "media", "templates"]
+ignore-patterns = [
+    "test_.*?\\.py",
+]
+suggestion-mode = true
+
+[tool.pylint."messages control"]
+disable = [
+    "C0114", # missing-module-docstring
+    "C0115", # missing-class-docstring
+    "C0116", # missing-function-docstring
+    "E0213", # no-self-argument
+    "R0801", # duplicate-code
+    "R0901", # too-many-ancestors
+    "R0902", # too-many-instance-attributes
+    "R0903", # too-few-public-methods
+    "W1514", # unspecified-encoding
+    "logging-fstring-interpolation",
+    "invalid-name", # C0103
+    # added:
+    "import-outside-toplevel",
+    "unnecessary-lambda-assignment",
+]
+
+[tool.pylint.format]
+max-line-length = 120
+ignore-long-lines = "^\\s*(# )?<?https?://\\S+>?$"
+max-module-lines = 1000
+
+[tool.pylint.design]
+max-args = 7
+max-attributes = 10
+max-bool-expr = 5
+max-branches = 12
+max-locals = 15
+max-parents = 7
+max-public-methods = 20
+max-returns = 6
+max-statements = 40
+
+[tool.pylint.basic]
+good-names = ["i", "j", "k", "e", "x", "_", "pk", "id", "df", "db", "qs"]
+no-docstring-rgx = "^_"
+
+[tool.pylint.refactoring]
+max-nested-blocks = 6
+
+[tool.pylint.variables]
+dummy-variables-rgx = "_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|dummy|^ignored_|^unused_"
+init-import = true
