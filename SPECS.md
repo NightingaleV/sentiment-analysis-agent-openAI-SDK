@@ -1,97 +1,191 @@
 
-# Definition of Sentiment Analysis AI Agent
+# Sentiment Analysis Agent Specification
 
-We need to make a design document and specification for our AI agent. I want the to build an AI agent with Open AI SDK that analyzes sentiment of stock market news articles and provides insights. 
-The agent should be able to fetch news articles from various sources, analyze the sentiment using natural language processing techniques, and generate a report summarizing the overall sentiment towards specific stocks or the market as a whole. 
-The outputed report is going to serve as input for another AI agent that will make stock trading decisions based on the sentiment analysis provided. The report should include key metrics such as positive, negative, and neutral sentiment percentages, as well as reasoning behind the sentiment classification and recommendations for next action.
+## Background / Definition
+We want to build an AI agent (OpenAI SDK / Agents SDK) that analyzes sentiment of stock market news articles and provides
+insights. The agent should be able to fetch news articles from various sources, analyze sentiment using NLP techniques,
+and generate a report summarizing the overall sentiment towards specific stocks or the market as a whole.
 
-# Technology
+The output report will serve as input for another AI agent that makes stock trading decisions. The report should include:
+- Key metrics such as positive/negative/neutral sentiment percentages
+- Reasoning behind the sentiment classification
+- Recommendations for next actions / what to monitor
+
+## Goal
+Produce a structured, machine-readable sentiment report for a stock ticker over a defined time window using news content
+from multiple sources. The report is intended to be consumed by another agent that makes trading decisions.
+
+## Non-goals
+- Execute trades or place orders.
+- Provide investment advice to end users (this is a pipeline component, not a consumer product).
+
+## Technology
 - Python 3.12+
-- OpenAI SDK
-- Pydantic for data validation and model definition
-- And more
+- Pydantic 2.x models for structured input/output
+- HTTP clients for data sources (e.g. `httpx`)
+- LLM integration (planned): OpenAI Agents SDK (tool calling + structured outputs)
 
-# Architecture
-The AI agent will be structured into several key components:
-1. Data Source Collection Service: Responsible for fetching news articles from various sources (APIs, RSS feeds, web scraping).
-2. Agent Toolset: A set of tools that the AI agent can use to interact with the data source collection service and perform sentiment analysis.
-3. Sentiment Analysis Agent: The core AI agent that utilizes the toolset to analyze sentiment and generate reports.
-4. Data Models: Pydantic models defining the structure of the data being processed and outputted by the agent.
+## Core Data Models
+All sources, tools, and agents must use the Pydantic models in `sentiment_analysis_agent/models/sentiment_analysis.py`.
 
-### Data Models
+Key types:
+- `SentimentContent`: raw content item (headline/article/post)
+- `SentimentContentScore`: a scored content item (polarity/relevance/impact + reasoning)
+- `SentimentReport`: aggregated sentiment report for a ticker/time window
 
-We have defined Pydantic models used by the data source collection services and ai agents inside `sentiment_analysis_agent/models/` folder.
+## Architecture Overview
+The system is intentionally split into two phases:
+1. **Fetch/normalize/score content** → `list[SentimentContentScore]`
+2. **Aggregate overall sentiment metrics** → deterministic aggregates used by the agent to build `SentimentReport`
 
-So all implementation of data sources and AI agents should use these models to ensure consistency and reliability of the data being processed by the AI agent.
+This keeps the agent simple and makes the pipeline reusable:
+- If a source already provides sentiment scores (Alpha Vantage), we can skip LLM scoring.
+- If a source provides only headlines/articles (RSS/Bing feed), we score the content using a scoring service.
 
-# Data Sources
+### Components
+The AI agent is structured into several key components:
+1. Data Source Collection Service: fetches articles from APIs, RSS feeds, and/or scraping.
+2. Agent Toolset: tools to fetch content and compute aggregate metrics.
+3. Sentiment Analysis Agent: orchestrates tools and produces `SentimentReport`.
+4. Data Models: Pydantic schemas used across services/agents.
 
-For data sources we will use precalculated sentiment from Alpha Vantage API. And then RSS feed from bing.
+## Agent Tools (Capabilities)
+Tools are Python functions/classes the agent can call. They may be exposed as LLM tools, but they should also work as
+regular Python methods so we can test them deterministically.
 
-Each data source will be implemented as a separate class that adheres to a common interface. This will allow us to easily add or remove data sources in the future without affecting the overall architecture of the agent.
+### Tool 1: Fetch Scored Content
+**Purpose**: Fetch content for a ticker/time window from configured source.
 
-The components should have limit option to fetch only relevant number of articles for the given time window. When limit is in place, In case of Alpha Vantage API, it should return only top N articles with highest relevance score to the given ticker.
+**Input** (conceptual):
+- `ticker`
+- `start_time`, `end_time` (UTC)
+- `limit` (max items returned)
+- `min_relevance_score` (optional filter)
+- `sources` (optional allowlist)
 
-Service will offer in the interface option to get classified articles.
+**Output** (conceptual):
+- `scored_contents: list[SentimentContentScore]` 
 
-## #1 Alpha Vantage API
+**Responsibilities**:
+- Call each configured data source.
+- Normalize raw items to `SentimentContent`.
+- If the source is pre-scored (Alpha Vantage), map directly to `SentimentContentScore`.
+- Keep raw-only items separate (they must be scored by sentiment scoring pipeline before aggregation/reporting).
+- De-duplicate items (by URL/content_id) across sources.
+- Apply time-window + relevance filtering and enforce `limit`.
 
-- We have mocks in `sentiment_analysis_agent/resources/mocks/alpha_vantage_mock.py`
+**Implementation notes**:
+- Prefer deterministic ordering: sort by `(relevance_score * impact_score)` desc, then `published_at` desc.
+- Time window will allow only for categorical specification ("short term" = last 7 days, "medium term" = last 30 days, "long term" = last 90 days).
+- Cache at two levels:
+  - raw fetch cache (per source/ticker/window) - with certain expiration period depending if the fetch is done on short, medium or long term basis
+  - score cache (per content hash) to avoid re-scoring duplicates
 
-Implementation Tasks:
-Define Alpha Vantage Service class that will adhere to common data source interface. This service will fetch based on ticker and time range the sentiment data from Alpha Vantage API. 
+### Tool 2: Aggregate Overall Sentiment Metrics
+**Purpose**: Deterministically aggregate metrics from scored items for report generation.
 
-The fetched data will be mapped to Pydantic models defined in `sentiment_analysis_agent/models/sentiment_analysis.py`.
+**Input** (conceptual):
+- `ticker`
+- `start_time`, `end_time` (UTC)
+- `contents: list[SentimentContentScore]`
 
-Services that will fetch sentiment data for specific ticker from API and map it to SentimentContentScore model. It will allow the agent also filter out minimum relevance score to the ticker.
+**Output** (conceptual):
+- Counts and percentages: positive / negative / neutral
+- Weighted aggregate sentiment score (e.g. weight by `relevance_score * impact_score`)
+- Aggregate `relevance_score` and `impact_score` for the time window
+- Top drivers: top-N items by `(relevance_score * impact_score)`
 
-## News RSS Feed
+**Responsibilities**:
+- Compute numeric aggregates (mean/weighted mean, counts, percentages) deterministically.
+- Identify top drivers (high impact/relevance items) and notable contradictions/dispersion (optional).
+- Provide stable ordering and reproducible results (critical for testing).
 
-We will also analyse news from Bing News Search: https://www.bing.com/news/search?q=AAPL&qft=interval%3d%228%22&form=PTFTNR
+**LLM usage guidance**:
+- The aggregation tool should not call an LLM.
+- Use an LLM only for synthesizing narrative fields / categorical labels inside the agent.
 
-So the component for fetching news articles from RSS feed will be implemented as separate class adhering to common data source interface. It will fetch news articles based on ticker and lookback window (like 1W, 1M etc), and map them to SentimentContent defined in `sentiment_analysis_agent/models/sentiment_analysis.py`.
+### Optional Internal Tools (Not necessarily LLM-exposed)
+These are helpful for testing and keeping responsibilities small:
+- `FetchRawContentTool`: returns `list[SentimentContent]` for raw sources (RSS/Bing feed)
+- `ScoreContentTool`: converts `list[SentimentContent]` → `list[SentimentContentScore]`
 
 
-### Implementation Tasks
+## Data Sources
+Each data source should be implemented as a separate class that adheres to a common interface. This allows us to add or
+remove sources without changing the agent orchestration.
 
-- Define a common interface for data sources that is easy to understand and extend.
-- Implement cache mechanism to avoid fetching data for same ticker. Especially for API based sources with rate limits.
-- Define data models using Pydantic for the data fetched from each source.
-- Implement the Alpha Vantage API data source class.
-- Implement the Bing News Search RSS feed data source class.
+### Required interface (conceptual)
+- `fetch(ticker, start_time, end_time, limit) -> list[SentimentContent] | list[SentimentContentScore]`
+- `source_name: str`
+- `returns_scored: bool` (or separate subclasses for raw vs scored sources)
 
-### Potential Development Ideas for News Sources
+### Alpha Vantage News Sentiment (pre-scored)
+- Mock response is available in `sentiment_analysis_agent/resources/mocks/alpha_vantage_mock.py`.
+- When `limit` is set: return top N articles with the highest relevance score to the given ticker.
+- Map Alpha Vantage items to:
+  - `SentimentContent` (title/summary/url/published_at/source metadata)
+  - `SentimentContentScore` (sentiment/relevance + optional reasoning/confidence/model_name)
 
-We could also analyse articles from these websites:
+### Bing News Search RSS feed (raw-only)
+We will also analyze news from Bing News Search:
+`https://www.bing.com/news/search?q=AAPL&qft=interval%3d%228%22&form=PTFTNR`
 
-RSS Feeds:
+- Fetch headlines/articles for the ticker/time window and map to `SentimentContent`.
+- These items must be scored by the scoring pipeline before aggregation/report generation.
+- Note: Bing can be tricky (infinite scroll / HTML changes). Prefer RSS if available; otherwise implement robust scraping.
+
+## Potential Development Ideas for News Sources (Future)
+We could also analyze articles from these websites:
+
+RSS feeds:
 - https://www.reuters.com/tools/rss
 - https://seekingalpha.com/market_currents.xml
 - https://www.marketwatch.com/rss/topstories
 
-## Headlines Only
-These feeds provide only headlines, but are easy to scrape:
-https://seekingalpha.com/api/sa/combined/AAPL.xml
-https://www.nasdaq.com/feed/rssoutbound?symbol=AAPL
-https://news.google.com/rss/search?q=AAPL&hl=en-US&gl=US&ceid=US:en
+Headlines-only (easy to scrape):
+- https://seekingalpha.com/api/sa/combined/AAPL.xml
+- https://www.nasdaq.com/feed/rssoutbound?symbol=AAPL
+- https://news.google.com/rss/search?q=AAPL&hl=en-US&gl=US&ceid=US:en
 
-# Bing News Search
-But its infinite scroll, so might be tricky to scrape:
-https://www.bing.com/news/search?q=AAPL&qft=interval%3d%228%22&form=PTFTNR
+## Sentiment Scoring Pipeline (Raw → Scored)
+For sources that provide only raw content:
+- Input: a single `SentimentContent`
+- Output: `SentimentContentScore`
 
-# Sentiment Classification Pipeline
+Scoring fields:
+- `sentiment_score`: -1..1 (bearish..bullish)
+- `relevance_score`: 0..1 (how related is it to the ticker)
+- `impact_score`: 0..1 (estimated market impact)
+- `reasoning`: short explanation for the scores (used for traceability)
 
-For the sentiment content pipeline of individual articles/resources, we will create a service that takes single SentimentContent item and process it into SentimentContentScore by analyzing the sentiment using OpenAI SDK. 
-
-In the pipeline, we will use a fine-tuned model for financial sentiment analysis.
-
-Models to consider:
+In the pipeline, we will use a finance-tuned model for sentiment scoring. Candidates to evaluate:
 - https://huggingface.co/mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis?inference_provider=hf-inference
 - https://huggingface.co/msr2903/mrm8488-distilroberta-fine-tuned-financial-sentiment
 
-Services will be implemented as separate class that will take SentimentContent item and return SentimentContentScore item.
+## Sentiment Analysis Agent
+**Primary responsibility**: orchestrate tool calls and return `SentimentReport` (structured output only).
 
+### Inputs
+The agent should accept either:
+- a request containing `ticker + time window` (agent performs fetching/scoring/aggregation)
+- `ticker + time window + pre-scored contents` (agent skips fetching/scoring and only aggregates + generates report)
 
-# AI Agent Implementation
+### Execution flow (happy path)
+1. Validate inputs and normalize ticker.
+2. Call **Fetch Content** tool (raw + pre-scored).
+3. Score raw content via scoring service (LLM-backed, mockable).
+4. Call **Aggregate Overall Sentiment Metrics** tool.
+5. Use aggregates + top drivers to synthesize the final `SentimentReport`.
+6. Return `SentimentReport`.
 
-The Sentiment Analysis Agent will be implemented using the OpenAI SDK. It will utilize the data source collection services to fetch news articles and sentiment data. The agent will then analyze the sentiment using natural language processing techniques and generate a report summarizing the overall sentiment towards specific stocks or the market as a whole.
+### Error handling
+- Source failures should degrade gracefully (partial data is allowed); the report should still be produced when possible.
+- Implement retries/backoff for transient HTTP errors and LLM calls.
+- Always return timezone-aware UTC timestamps.
+
+## Implementation Checklist
+- Define common data source interface and Alpha Vantage + Bing RSS/headlines implementations.
+- Implement cache for fetch + scoring steps (rate-limits + de-duplication).
+- Implement scoring service for raw content (LLM-backed, mockable).
+- Implement deterministic aggregation tool (metrics + top drivers).
+- Implement agent report synthesis returning `SentimentReport`.
