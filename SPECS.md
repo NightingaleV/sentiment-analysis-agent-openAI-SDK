@@ -26,7 +26,7 @@ from multiple sources. The report is intended to be consumed by another agent th
 - LLM integration (planned): OpenAI Agents SDK (tool calling + structured outputs)
 
 ## Core Data Models
-All sources, tools, and agents must use the Pydantic models in `sentiment_analysis_agent/models/sentiment_analysis.py`.
+All sources, tools, and agents must use the Pydantic models in `sentiment_analysis_agent/models/sentiment_analysis_models.py`.
 
 Key types:
 - `SentimentContent`: raw content item (headline/article/post)
