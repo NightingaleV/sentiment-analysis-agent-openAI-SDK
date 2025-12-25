@@ -187,14 +187,16 @@ The agent should accept either:
 
 ## Implementation Plan
 
-**Data models & config**: Confirm sentiment_analysis.py matches SPECS fields (SentimentContent, SentimentContentScore, SentimentReport), add any missing enums/time-window helpers, and ensure UTC handling + type-safe inputs.
-**Data source layer**: Define a base source interface (source_name, returns_scored, fetch signature) and implement Alpha Vantage (using alpha_vantage_mock.py for dev) plus Bing RSS/headlines fetchers with normalization, dedupe by URL/content_id, and time-window filters; wire caching knobs (per ticker/window).
-**Scoring pipeline**: Build FetchRawContentTool and ScoreContentTool to convert raw SentimentContent → SentimentContentScore with pluggable sentiment model (LLM-backed or mock), apply per-content hash cache, and allow relevance/impact weighting config.
-**Aggregation tool**: Implement deterministic metric aggregation (counts/percentages, weighted sentiment, relevance/impact aggregates, top drivers ordered by relevance*impact, optional dispersion flags) without LLM usage.
-**Agent orchestration**: Create the Sentiment Analysis Agent (OpenAI Agents SDK) that validates inputs, fetches+scores content, calls the aggregator, then synthesizes narrative fields into a SentimentReport with graceful degradation/retries and structured outputs only.
+1. **Data models & config**: Confirm sentiment_analysis.py matches SPECS fields (SentimentContent, SentimentContentScore, SentimentReport), add any missing enums/time-window helpers, and ensure UTC handling + type-safe inputs.
+2. **Data source layer**: Define a base source interface (source_name, returns_scored, fetch signature) and implement Alpha Vantage (using alpha_vantage_mock.py for dev) plus Bing RSS/headlines fetchers with normalization, dedupe by URL/content_id, and time-window filters; wire caching knobs (per ticker/window).
+3. **Scoring pipeline**: Build FetchRawContentTool and ScoreContentTool to convert raw SentimentContent → SentimentContentScore with pluggable sentiment model (LLM-backed or mock), apply per-content hash cache, and allow relevance/impact weighting config.
+4. **Aggregation tool**: Implement deterministic metric aggregation (counts/percentages, weighted sentiment, relevance/impact aggregates, top drivers ordered by relevance*impact, optional dispersion flags) without LLM usage.
+5. **Agent orchestration**: Create the Sentiment Analysis Agent (OpenAI Agents SDK) that validates inputs, fetches+scores content, calls the aggregator, then synthesizes narrative fields into a SentimentReport with graceful degradation/retries and structured outputs only.
 
 ## Non-functional Requirements
 
 **Quality gates:** Add pytest coverage for sources (mocked HTTP), scoring pipeline, aggregator math, and agent flow; include fixtures for time windows and mocks. Don't overcomplicate tests, but I want to have basic things covered. 
 
 **Documentation**: Document usage/run instructions and architecture in README. Add google style docstrings to all public methods/classes.
+
+**KISS**: Keep things simple and modular. Avoid over-engineering or premature optimization. Focus on clear, maintainable code.
