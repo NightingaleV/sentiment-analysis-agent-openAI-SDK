@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import math
+from datetime import datetime, timedelta, timezone
 
 try:  # Python 3.11+
     from enum import StrEnum
@@ -20,6 +21,22 @@ def _utcnow() -> datetime:
     """Return timezone-aware UTC timestamp for default factories."""
 
     return datetime.now(timezone.utc)
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    """Ensure timestamps are timezone-aware UTC."""
+
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _ensure_optional_utc(value: datetime | None) -> datetime | None:
+    """Ensure optional timestamps are timezone-aware UTC."""
+
+    if value is None:
+        return None
+    return _ensure_utc(value)
 
 
 class Signal(StrEnum):
@@ -86,6 +103,50 @@ class SourceType(StrEnum):
         raise ValueError(f"Invalid SourceType value: {value!r}. Must be one of: {allowed}")
 
 
+class TimeWindow(StrEnum):
+    """Categorical time windows used to fetch and aggregate content."""
+
+    SHORT_TERM = "short"
+    MEDIUM_TERM = "medium"
+    LONG_TERM = "long"
+
+    @classmethod
+    def _missing_(cls, value: str):  # type: ignore[override]
+        """Provide lenient parsing for labels like 'short term' or 'medium-term'."""
+
+        normalized = value.lower().replace("-", " ").strip()
+        normalized = normalized.replace(" term", "").strip()
+        aliases = {
+            "short": cls.SHORT_TERM,
+            "shortterm": cls.SHORT_TERM,
+            "medium": cls.MEDIUM_TERM,
+            "mediumterm": cls.MEDIUM_TERM,
+            "long": cls.LONG_TERM,
+            "longterm": cls.LONG_TERM,
+        }
+        mapped = aliases.get(normalized.replace(" ", ""))
+        if mapped:
+            return mapped
+        allowed = ", ".join(m.value for m in cls)
+        raise ValueError(f"Invalid TimeWindow value: {value!r}. Must be one of: {allowed}")
+
+    def duration(self) -> timedelta:
+        """Return the timedelta span associated with this window."""
+
+        if self is TimeWindow.SHORT_TERM:
+            return timedelta(days=7)
+        if self is TimeWindow.MEDIUM_TERM:
+            return timedelta(days=30)
+        return timedelta(days=90)
+
+    def to_time_range(self, end_time: datetime | None = None) -> tuple[datetime, datetime]:
+        """Compute (start, end) UTC bounds for this window."""
+
+        end = _ensure_utc(end_time or _utcnow())
+        start = end - self.duration()
+        return start, end
+
+
 class SentimentContent(BaseModel):
     """Scraped content item (news article, RSS entry, Reddit post, etc.)."""
 
@@ -93,6 +154,7 @@ class SentimentContent(BaseModel):
 
     content_id: str = Field(description="Stable identifier for the content item.")
     ticker: str = Field(description="Ticker symbol the content primarily targets.")
+    source: str | None = Field(default=None, description="Identifier for the provider/source (e.g., alpha_vantage).")
     title: str = Field(description="Title or descriptive label for the content.")
     summary: str | None = Field(default=None, description="Optional short summary or excerpt.")
     body: str | None = Field(default=None, description="Full text body if available from the source.")
@@ -122,11 +184,7 @@ class SentimentContent(BaseModel):
     def _ensure_datetime_utc(cls, value: datetime | None) -> datetime | None:
         """Ensure timestamps are timezone-aware UTC."""
 
-        if value is None:
-            return None
-        if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+        return _ensure_optional_utc(value)
 
 
 class SentimentContentScore(BaseModel):
@@ -163,9 +221,7 @@ class SentimentContentScore(BaseModel):
     def _ensure_scored_at_utc(cls, value: datetime) -> datetime:
         """Ensure `scored_at` is timezone-aware UTC."""
 
-        if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+        return _ensure_utc(value)
 
 
 class SentimentAnalysisInput(BaseModel):
@@ -174,8 +230,16 @@ class SentimentAnalysisInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ticker: str = Field(description="Stock ticker symbol (uppercased).")
-    start_time: datetime = Field(description="Start timestamp (UTC) for content retrieval and aggregation.")
-    end_time: datetime = Field(description="End timestamp (UTC) for content retrieval and aggregation.")
+    time_window: TimeWindow | None = Field(
+        default=None,
+        description="Categorical window defining how far back to fetch content (short/medium/long).",
+    )
+    start_time: datetime | None = Field(
+        default=None, description="Start timestamp (UTC) for content retrieval and aggregation."
+    )
+    end_time: datetime | None = Field(
+        default=None, description="End timestamp (UTC) for content retrieval and aggregation."
+    )
     limit: int = Field(default=50, ge=1, description="Maximum number of scored content items to use.")
     min_relevance_score: float | None = Field(
         default=None, ge=0, le=1, description="Optional minimum relevance filter (0..1)."
@@ -197,19 +261,71 @@ class SentimentAnalysisInput(BaseModel):
 
     @field_validator("start_time", "end_time")
     @classmethod
-    def _ensure_datetime_utc(cls, value: datetime) -> datetime:
+    def _ensure_datetime_utc(cls, value: datetime | None) -> datetime | None:
         """Ensure timestamps are timezone-aware UTC."""
 
-        if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+        return _ensure_optional_utc(value)
 
     @model_validator(mode="after")
     def _validate_time_window(self) -> "SentimentAnalysisInput":
         """Validate that the time window is ordered and non-empty."""
 
+        if self.time_window is not None:
+            derived_start, derived_end = self.time_window.to_time_range(self.end_time)
+            self.start_time = self.start_time or derived_start
+            self.end_time = self.end_time or derived_end
+
+        if self.start_time is None or self.end_time is None:
+            raise ValueError("Either time_window or both start_time and end_time must be provided")
+
         if self.start_time > self.end_time:
             raise ValueError("start_time must be <= end_time")
+        return self
+
+
+class SentimentBreakdown(BaseModel):
+    """Counts and percentages for positive/negative/neutral sentiment buckets."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    positive: int = Field(ge=0, description="Count of positively scored items.")
+    negative: int = Field(ge=0, description="Count of negatively scored items.")
+    neutral: int = Field(ge=0, description="Count of neutral scored items.")
+    positive_ratio: float | None = Field(
+        default=None, ge=0, le=1, description="Fraction of items with positive sentiment (0..1)."
+    )
+    negative_ratio: float | None = Field(
+        default=None, ge=0, le=1, description="Fraction of items with negative sentiment (0..1)."
+    )
+    neutral_ratio: float | None = Field(
+        default=None, ge=0, le=1, description="Fraction of items with neutral sentiment (0..1)."
+    )
+
+    @model_validator(mode="after")
+    def _compute_missing_ratios(self) -> "SentimentBreakdown":
+        """Compute or validate ratios so they sum to 1.0."""
+
+        total = self.positive + self.negative + self.neutral
+        if total == 0:
+            self.positive_ratio = self.positive_ratio or 0.0
+            self.negative_ratio = self.negative_ratio or 0.0
+            self.neutral_ratio = self.neutral_ratio or 0.0
+            total_ratio = self.positive_ratio + self.negative_ratio + self.neutral_ratio
+            if not math.isclose(total_ratio, 0.0, rel_tol=1e-6, abs_tol=1e-6):
+                raise ValueError("Ratios must sum to 0.0 when no content items are present")
+            return self
+        else:
+            self.positive_ratio = self.positive_ratio if self.positive_ratio is not None else self.positive / total
+            self.negative_ratio = self.negative_ratio if self.negative_ratio is not None else self.negative / total
+            self.neutral_ratio = self.neutral_ratio if self.neutral_ratio is not None else self.neutral / total
+
+        ratios = [self.positive_ratio, self.negative_ratio, self.neutral_ratio]
+        if any(value is None for value in ratios):
+            raise ValueError("positive_ratio, negative_ratio, and neutral_ratio must be provided or computable")
+
+        total_ratio = sum(ratios)  # type: ignore[arg-type]
+        if not math.isclose(total_ratio, 1.0, rel_tol=1e-6, abs_tol=1e-6):
+            raise ValueError("positive_ratio + negative_ratio + neutral_ratio must equal 1.0")
         return self
 
 
@@ -219,6 +335,7 @@ class SentimentReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ticker: str = Field(description="Stock ticker symbol (uppercased).")
+    time_window: TimeWindow | None = Field(default=None, description="Categorical time window used for aggregation.")
     time_period: tuple[datetime, datetime] = Field(description="Start/end timestamps (UTC) used to aggregate content.")
     generated_at: datetime = Field(description="When the report was generated (UTC).")
     # Categorical fields
@@ -243,9 +360,16 @@ class SentimentReport(BaseModel):
     impact_score: float = Field(
         ge=0, le=1, description="Aggregate estimated market impact magnitude over the time window (0..1)."
     )
+    breakdown: SentimentBreakdown = Field(
+        description="Counts and percentages for positive, negative, and neutral sentiment classifications."
+    )
 
     contents: list[SentimentContentScore] = Field(
         default_factory=list, description="Scored content items backing the aggregated sentiment assessment."
+    )
+    top_drivers: list[SentimentContentScore] = Field(
+        default_factory=list,
+        description="Highest weighted content items (ordered by relevance_score * impact_score).",
     )
 
     @field_validator("ticker")
@@ -260,9 +384,7 @@ class SentimentReport(BaseModel):
     def _ensure_generated_at_utc(cls, value: datetime) -> datetime:
         """Ensure `generated_at` is timezone-aware UTC."""
 
-        if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+        return _ensure_utc(value)
 
     @field_validator("time_period")
     @classmethod
@@ -270,16 +392,8 @@ class SentimentReport(BaseModel):
         """Ensure time period boundaries are timezone-aware UTC."""
 
         start, end = value
-        if start.tzinfo is None:
-            start = start.replace(tzinfo=timezone.utc)
-        else:
-            start = start.astimezone(timezone.utc)
-
-        if end.tzinfo is None:
-            end = end.replace(tzinfo=timezone.utc)
-        else:
-            end = end.astimezone(timezone.utc)
-
+        start = _ensure_utc(start)
+        end = _ensure_utc(end)
         return start, end
 
     @model_validator(mode="after")
