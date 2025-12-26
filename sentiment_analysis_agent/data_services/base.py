@@ -60,20 +60,23 @@ class BaseSentimentSource(ABC):
         pass
 
     async def fetch_latest(
-        self, ticker: str, horizon: TimeWindow = TimeWindow.SHORT_TERM, limit: int | None = None
+        self, ticker: str, horizon: TimeWindow | str = TimeWindow.SHORT_TERM, limit: int | None = None
     ) -> list[SentimentContent] | list[SentimentContentScore]:
         """Fetch latest sentiment content using TimeWindow horizon.
 
         Args:
             ticker: Stock ticker symbol (will be normalized to uppercase)
-            horizon: Time horizon (SHORT_TERM, MEDIUM_TERM, LONG_TERM)
+            horizon: Time horizon - can be TimeWindow enum or string ('short', 'medium', 'long')
             limit: Maximum number of items to return (None = no limit)
 
         Returns:
             List of SentimentContent (raw) or SentimentContentScore (pre-scored)
         """
+        # Convert string to TimeWindow if needed
+        if isinstance(horizon, str):
+            horizon = TimeWindow(horizon)
+
         start_time, end_time = horizon.to_time_range()
-        print(f"Fetching data for {ticker} from {start_time} to {end_time} ({horizon.name})")
         return await self.fetch(ticker, start_time, end_time, limit)
 
 

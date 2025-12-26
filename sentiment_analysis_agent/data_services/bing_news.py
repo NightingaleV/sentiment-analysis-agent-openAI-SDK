@@ -67,11 +67,11 @@ class BingNewsRSSSource(RawSentimentSource):
         time_range_days = (end_time - start_time).days
 
         if time_range_days <= 1:
-            interval = "7"   # past 24h
+            interval = "7"  # past 24h
         elif time_range_days <= 7:
-            interval = "8"   # past 7d
+            interval = "8"  # past 7d
         else:
-            interval = "9"   # past 30d
+            interval = "9"  # past 30d
 
         # ✅ IMPORTANT: qft must be UN-encoded. Let httpx encode it.
         qft = f'sortbydate="1"+interval="{interval}"'
@@ -80,11 +80,9 @@ class BingNewsRSSSource(RawSentimentSource):
             "q": ticker,
             "format": "rss",
             "qft": qft,
-
             # ✅ Force same market/lang as your browser feed (you showed en-us)
             "setmkt": "en-us",
             "setlang": "en-us",
-
             # Optional: may be ignored / capped by Bing for RSS
             "count": "50",
         }
