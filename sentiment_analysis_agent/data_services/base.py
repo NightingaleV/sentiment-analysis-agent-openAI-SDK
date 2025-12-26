@@ -95,6 +95,26 @@ class RawSentimentSource(BaseSentimentSource):
         """Fetch raw sentiment content."""
         pass
 
+    async def fetch_latest(
+        self, ticker: str, horizon: TimeWindow | str = TimeWindow.SHORT_TERM, limit: int | None = None
+    ) -> list[SentimentContent]:
+        """Fetch latest sentiment content using TimeWindow horizon.
+
+        Args:
+            ticker: Stock ticker symbol (will be normalized to uppercase)
+            horizon: Time horizon - can be TimeWindow enum or string ('short', 'medium', 'long')
+            limit: Maximum number of items to return (None = no limit)
+
+        Returns:
+            List of raw SentimentContent items (not scored)
+        """
+        # Convert string to TimeWindow if needed
+        if isinstance(horizon, str):
+            horizon = TimeWindow(horizon)
+
+        start_time, end_time = horizon.to_time_range()
+        return await self.fetch(ticker, start_time, end_time, limit)
+
 
 class ScoredSentimentSource(BaseSentimentSource):
     """Base class for sources that return pre-scored content."""
@@ -110,3 +130,23 @@ class ScoredSentimentSource(BaseSentimentSource):
     ) -> list[SentimentContentScore]:
         """Fetch pre-scored sentiment content."""
         pass
+
+    async def fetch_latest(
+        self, ticker: str, horizon: TimeWindow | str = TimeWindow.SHORT_TERM, limit: int | None = None
+    ) -> list[SentimentContentScore]:
+        """Fetch latest sentiment content using TimeWindow horizon.
+
+        Args:
+            ticker: Stock ticker symbol (will be normalized to uppercase)
+            horizon: Time horizon - can be TimeWindow enum or string ('short', 'medium', 'long')
+            limit: Maximum number of items to return (None = no limit)
+
+        Returns:
+            List of pre-scored SentimentContentScore items
+        """
+        # Convert string to TimeWindow if needed
+        if isinstance(horizon, str):
+            horizon = TimeWindow(horizon)
+
+        start_time, end_time = horizon.to_time_range()
+        return await self.fetch(ticker, start_time, end_time, limit)

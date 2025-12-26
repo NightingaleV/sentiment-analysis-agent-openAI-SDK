@@ -7,7 +7,7 @@ from email.utils import parsedate_to_datetime
 import httpx
 
 from sentiment_analysis_agent.data_services.base import RawSentimentSource
-from sentiment_analysis_agent.models.sentiment_analysis_models import SentimentContent, SourceType
+from sentiment_analysis_agent.models.sentiment_analysis_models import SentimentContent, SourceType, TimeWindow
 
 
 class BingNewsRSSSource(RawSentimentSource):

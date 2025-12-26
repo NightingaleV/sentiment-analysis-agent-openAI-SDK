@@ -239,7 +239,7 @@ class SentimentContentScore(BaseModel):
         """Ensure `scored_at` is timezone-aware UTC."""
 
         return _ensure_utc(value)
-    
+
     def weight(self) -> float:
         """Compute composite weight for ranking: relevance × impact."""
         return self.relevance_score * self.impact_score

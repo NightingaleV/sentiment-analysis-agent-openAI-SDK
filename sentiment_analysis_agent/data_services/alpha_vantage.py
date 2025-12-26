@@ -11,6 +11,7 @@ from sentiment_analysis_agent.models.sentiment_analysis_models import (
     SentimentContent,
     SentimentContentScore,
     SourceType,
+    TimeWindow,
 )
 
 
