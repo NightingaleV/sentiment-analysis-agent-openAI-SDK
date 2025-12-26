@@ -228,12 +228,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
    ```
 
 3. **Add Data Sources** (if needed):
-   ```python
-   # agentic_stock_analysis/sources/my_data_source.py
-   class MyDataSource:
-       # Implement data retrieval
-       pass
-   ```
+   See [Data Services](#data-services) section below for implementing new data sources.
 
 4. **Update Configuration**:
    - Add any new environment variables to `config/base.py`
@@ -249,7 +244,104 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
    ```
 
 6. **Update Documentation**:
-   - Add entry to this WARP.md file
+   - Add entry to this AGENTS.md file
    - Update README.md if it affects user-facing features
+
+## Data Services
+
+Data services provide a unified interface for fetching sentiment content from multiple sources.
+
+### Architecture
+
+```
+BaseSentimentSource (abstract)
+├─ RawSentimentSource → Returns raw content needing sentiment scoring
+│   └─ BingNewsRSSSource
+│
+└─ ScoredSentimentSource → Returns pre-scored content
+    └─ AlphaVantageNewsSource
+```
+
+### Implemented Sources
+
+**Alpha Vantage News Sentiment** (`data_services/alpha_vantage.py`)
+- Type: Pre-scored (returns `list[SentimentContentScore]`)
+- Features: High-quality financial news with sentiment/relevance/impact scores
+- Configuration: Requires `ALPHA_VANTAGE_API_KEY` or `use_mock=True`
+
+**Bing News RSS Feed** (`data_services/bing_news.py`)
+- Type: Raw content (returns `list[SentimentContent]`)
+- Features: Recent news headlines, fast and free
+- Limitations: Typically returns 10-15 items due to anti-scraping measures
+
+### Usage Example
+
+```python
+from sentiment_analysis_agent.data_services import AlphaVantageNewsSource, BingNewsRSSSource
+
+# Fetch pre-scored content
+av_source = AlphaVantageNewsSource(use_mock=True)
+scored_results = await av_source.fetch_latest("AAPL", horizon="medium", limit=10)
+
+# Fetch raw content (needs scoring)
+bing_source = BingNewsRSSSource()
+raw_results = await bing_source.fetch_latest("AAPL", horizon="short", limit=5)
+```
+
+### Adding New Data Sources
+
+1. **Choose Base Class**:
+   - Inherit from `RawSentimentSource` if source returns raw content
+   - Inherit from `ScoredSentimentSource` if source provides pre-scored content
+
+2. **Implement Required Methods**:
+   ```python
+   from sentiment_analysis_agent.data_services.base import RawSentimentSource
+   from sentiment_analysis_agent.models.sentiment_analysis_models import SentimentContent
+   
+   class MyNewsSource(RawSentimentSource):
+       @property
+       def source_name(self) -> str:
+           return "my_news_source"
+       
+       async def fetch(
+           self, ticker: str, start_time: datetime, end_time: datetime, limit: int | None = None
+       ) -> list[SentimentContent]:
+           # Implement fetching logic
+           # Return list of SentimentContent objects
+           pass
+   ```
+
+3. **Key Requirements**:
+   - Use `content_id` auto-generation (hash of ticker, source, URL, published_at)
+   - Ensure all timestamps are UTC timezone-aware
+   - Normalize ticker to uppercase
+   - Handle errors gracefully (network issues, parsing errors)
+   - Add mock data support for testing
+
+4. **Export in `__init__.py`**:
+   ```python
+   # sentiment_analysis_agent/data_services/__init__.py
+   from .my_news_source import MyNewsSource
+   __all__ = [..., "MyNewsSource"]
+   ```
+
+5. **Add Tests**:
+   ```python
+   # tests/test_my_news_source.py
+   @pytest.mark.asyncio
+   async def test_my_news_source():
+       source = MyNewsSource()
+       results = await source.fetch_latest("AAPL", horizon="short", limit=5)
+       assert len(results) >= 1
+       assert results[0].ticker == "AAPL"
+   ```
+
+### Documentation
+
+See detailed documentation:
+- [Data Services Guide](docs/guides/data-services.md) - Usage and examples
+- [API Reference](docs/api/data-services.md) - Detailed API documentation
+- [Configuration Reference](docs/reference/configuration.md) - Configuration options
 
 ## Agents
