@@ -152,13 +152,13 @@ class SentimentContent(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    content_id: str = Field(description="Stable identifier for the content item.")
+    content_id: str = Field(default="", description="Stable identifier for the content item (auto-generated).")
     ticker: str = Field(description="Ticker symbol the content primarily targets.")
     source: str | None = Field(default=None, description="Identifier for the provider/source (e.g., alpha_vantage).")
     title: str = Field(description="Title or descriptive label for the content.")
     summary: str | None = Field(default=None, description="Optional short summary or excerpt.")
     body: str | None = Field(default=None, description="Full text body if available from the source.")
-    url: HttpUrl | None = Field(default=None, description="Canonical URL if available.")
+    url: HttpUrl | str | None = Field(default=None, description="Canonical URL if available.")
     published_at: datetime | None = Field(default=None, description="Original publication timestamp (UTC).")
     collected_at: datetime | None = Field(
         default=None, description="Timestamp when the system ingested the content (UTC)."
@@ -185,6 +185,23 @@ class SentimentContent(BaseModel):
         """Ensure timestamps are timezone-aware UTC."""
 
         return _ensure_optional_utc(value)
+
+    @model_validator(mode="after")
+    def _generate_content_id(self) -> "SentimentContent":
+        """Generate stable content_id if not provided.
+
+        Hash is based on: ticker, source, url, and published_at.
+        This ensures deduplication across sources.
+        """
+        if not self.content_id:
+            url_str = str(self.url) if self.url else ""
+            published_str = self.published_at.isoformat() if self.published_at else ""
+            source_str = self.source or "unknown"
+
+            hash_input = f"{self.ticker}:{source_str}:{url_str}:{published_str}"
+            self.content_id = f"{source_str}_{abs(hash(hash_input))}"
+
+        return self
 
 
 class SentimentContentScore(BaseModel):
@@ -222,6 +239,10 @@ class SentimentContentScore(BaseModel):
         """Ensure `scored_at` is timezone-aware UTC."""
 
         return _ensure_utc(value)
+    
+    def weight(self) -> float:
+        """Compute composite weight for ranking: relevance × impact."""
+        return self.relevance_score * self.impact_score
 
 
 class SentimentAnalysisInput(BaseModel):
@@ -231,8 +252,7 @@ class SentimentAnalysisInput(BaseModel):
 
     ticker: str = Field(description="Stock ticker symbol (uppercased).")
     time_window: TimeWindow | None = Field(
-        default=None,
-        description="Categorical window defining how far back to fetch content (short/medium/long).",
+        default=None, description="Categorical window defining how far back to fetch content (short/medium/long)."
     )
     start_time: datetime | None = Field(
         default=None, description="Start timestamp (UTC) for content retrieval and aggregation."
@@ -368,8 +388,7 @@ class SentimentReport(BaseModel):
         default_factory=list, description="Scored content items backing the aggregated sentiment assessment."
     )
     top_drivers: list[SentimentContentScore] = Field(
-        default_factory=list,
-        description="Highest weighted content items (ordered by relevance_score * impact_score).",
+        default_factory=list, description="Highest weighted content items (ordered by relevance_score * impact_score)."
     )
 
     @field_validator("ticker")
