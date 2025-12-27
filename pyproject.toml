@@ -3,7 +3,7 @@ requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sentimant-analysis-agent"
+name = "sentiment_analysis_agent"
 version = "0.1.0"
 description = "Agentic multi-agent system for stock analysis (insider trading, fundamentals, trends, sentiment)."
 readme = "README.md"
@@ -12,17 +12,20 @@ dependencies = [
     "httpx>=0.28.1",
     "pandas>=2.2.3",
     "pydantic>=2.11.5",
+    "transformers>=4.47.1",
+    "torch>=2.5.1",
+    "sentencepiece>=0.2.0",
 ]
 
 # [project.scripts]
 # sentimant-analysis-agent = "sentimant_analysis_agent.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["sentimant_analysis_agent"]
+packages = ["sentiment_analysis_agent"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/sentimant_analysis_agent/**",
+    "/sentiment_analysis_agent/**",
     "/README.md",
     "/pyproject.toml",
 ]
@@ -93,3 +96,9 @@ max-nested-blocks = 6
 [tool.pylint.variables]
 dummy-variables-rgx = "_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|dummy|^ignored_|^unused_"
 init-import = true
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: Integration tests that may require external resources",
+    "slow: Slow tests (e.g., real model loading)",
+]
