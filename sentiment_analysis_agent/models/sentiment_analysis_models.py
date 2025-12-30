@@ -14,7 +14,14 @@ except ImportError:  # pragma: no cover - Python 3.10 fallback for tooling
         """Backport of `enum.StrEnum` for Python < 3.11."""
 
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    field_validator,
+    model_validator,
+)
 
 
 def _utcnow() -> datetime:
@@ -78,7 +85,9 @@ class MarketTrend(StrEnum):
             if member.value == normalized:
                 return member
         allowed = ", ".join(m.value for m in cls)
-        raise ValueError(f"Invalid MarketTrend value: {value!r}. Must be one of: {allowed}")
+        raise ValueError(
+            f"Invalid MarketTrend value: {value!r}. Must be one of: {allowed}"
+        )
 
 
 class SourceType(StrEnum):
@@ -100,7 +109,9 @@ class SourceType(StrEnum):
             if member.value == normalized:
                 return member
         allowed = ", ".join(m.value for m in cls)
-        raise ValueError(f"Invalid SourceType value: {value!r}. Must be one of: {allowed}")
+        raise ValueError(
+            f"Invalid SourceType value: {value!r}. Must be one of: {allowed}"
+        )
 
 
 class TimeWindow(StrEnum):
@@ -128,7 +139,9 @@ class TimeWindow(StrEnum):
         if mapped:
             return mapped
         allowed = ", ".join(m.value for m in cls)
-        raise ValueError(f"Invalid TimeWindow value: {value!r}. Must be one of: {allowed}")
+        raise ValueError(
+            f"Invalid TimeWindow value: {value!r}. Must be one of: {allowed}"
+        )
 
     def duration(self) -> timedelta:
         """Return the timedelta span associated with this window."""
@@ -139,7 +152,9 @@ class TimeWindow(StrEnum):
             return timedelta(days=30)
         return timedelta(days=90)
 
-    def to_time_range(self, end_time: datetime | None = None) -> tuple[datetime, datetime]:
+    def to_time_range(
+        self, end_time: datetime | None = None
+    ) -> tuple[datetime, datetime]:
         """Compute (start, end) UTC bounds for this window."""
 
         end = _ensure_utc(end_time or _utcnow())
@@ -152,24 +167,43 @@ class SentimentContent(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    content_id: str = Field(default="", description="Stable identifier for the content item (auto-generated).")
+    content_id: str = Field(
+        default="",
+        description="Stable identifier for the content item (auto-generated).",
+    )
     ticker: str = Field(description="Ticker symbol the content primarily targets.")
-    source: str | None = Field(default=None, description="Identifier for the provider/source (e.g., alpha_vantage).")
+    source: str | None = Field(
+        default=None,
+        description="Identifier for the provider/source (e.g., alpha_vantage).",
+    )
     title: str = Field(description="Title or descriptive label for the content.")
-    summary: str | None = Field(default=None, description="Optional short summary or excerpt.")
-    body: str | None = Field(default=None, description="Full text body if available from the source.")
-    url: HttpUrl | str | None = Field(default=None, description="Canonical URL if available.")
-    published_at: datetime | None = Field(default=None, description="Original publication timestamp (UTC).")
+    summary: str | None = Field(
+        default=None, description="Optional short summary or excerpt."
+    )
+    body: str | None = Field(
+        default=None, description="Full text body if available from the source."
+    )
+    url: HttpUrl | str | None = Field(
+        default=None, description="Canonical URL if available."
+    )
+    published_at: datetime | None = Field(
+        default=None, description="Original publication timestamp (UTC)."
+    )
     collected_at: datetime | None = Field(
-        default=None, description="Timestamp when the system ingested the content (UTC)."
+        default=None,
+        description="Timestamp when the system ingested the content (UTC).",
     )
 
     source_url: HttpUrl | None = Field(
-        default=None, description="URL of the specific content item in the source system."
+        default=None,
+        description="URL of the specific content item in the source system.",
     )
-    source_type: SourceType | None = Field(default=None, description="High-level category of the content source.")
+    source_type: SourceType | None = Field(
+        default=None, description="High-level category of the content source."
+    )
     metadata: dict[str, str] | None = Field(
-        default=None, description="Optional provider-specific attributes (e.g., author, subreddit)."
+        default=None,
+        description="Optional provider-specific attributes (e.g., author, subreddit).",
     )
 
     @field_validator("ticker")
@@ -211,26 +245,37 @@ class SentimentContentScore(BaseModel):
 
     content: SentimentContent = Field(description="Content payload that was evaluated.")
     sentiment_score: float = Field(
-        ge=-1, le=1, description="Sentiment polarity score where -1 is strongly bearish and +1 strongly bullish."
+        ge=-1,
+        le=1,
+        description="Sentiment polarity score where -1 is strongly bearish and +1 strongly bullish.",
     )
     impact_score: float = Field(
         ge=0,
         le=1,
         description="Estimated market impact of the content (0 no impact on trading, +1 maximum impact on stock price).",
     )
-    relevance_score: float = Field(ge=0, le=1, description="Degree of relevance of the content to the ticker (0..1).")
+    relevance_score: float = Field(
+        ge=0,
+        le=1,
+        description="Degree of relevance of the content to the ticker (0..1).",
+    )
     confidence: float | None = Field(
-        default=None, ge=0, le=1, description="Optional confidence metric provided by the scoring agent (0..1)."
+        default=None,
+        ge=0,
+        le=1,
+        description="Optional confidence metric provided by the scoring agent (0..1).",
     )
     reasoning: str | None = Field(
         default=None,
         description="Free-form rationale from the scoring agent describing how the scores were derived and interpreted.",
     )
     scored_at: datetime = Field(
-        default_factory=_utcnow, description="Timestamp when the scoring agent generated these values (UTC)."
+        default_factory=_utcnow,
+        description="Timestamp when the scoring agent generated these values (UTC).",
     )
     model_name: str | None = Field(
-        default=None, description="Identifier for the LLM / model responsible for the scoring."
+        default=None,
+        description="Identifier for the LLM / model responsible for the scoring.",
     )
 
     @field_validator("scored_at")
@@ -252,24 +297,53 @@ class SentimentAnalysisInput(BaseModel):
 
     ticker: str = Field(description="Stock ticker symbol (uppercased).")
     time_window: TimeWindow | None = Field(
-        default=None, description="Categorical window defining how far back to fetch content (short/medium/long)."
+        default=None,
+        description="Categorical window defining how far back to fetch content (short/medium/long).",
     )
     start_time: datetime | None = Field(
-        default=None, description="Start timestamp (UTC) for content retrieval and aggregation."
+        default=None,
+        description="Start timestamp (UTC) for content retrieval and aggregation.",
     )
     end_time: datetime | None = Field(
-        default=None, description="End timestamp (UTC) for content retrieval and aggregation."
+        default=None,
+        description="End timestamp (UTC) for content retrieval and aggregation.",
     )
-    limit: int = Field(default=50, ge=1, description="Maximum number of scored content items to use.")
+    limit: int = Field(
+        default=50, ge=1, description="Maximum number of scored content items to use."
+    )
     min_relevance_score: float | None = Field(
-        default=None, ge=0, le=1, description="Optional minimum relevance filter (0..1)."
+        default=None,
+        ge=0,
+        le=1,
+        description="Optional minimum relevance filter (0..1).",
     )
     sources: list[str] | None = Field(
-        default=None, description="Optional allowlist of source identifiers to query (implementation-defined)."
+        default=None,
+        description="Optional allowlist of source identifiers to query (implementation-defined).",
     )
     contents: list[SentimentContentScore] = Field(
         default_factory=list,
         description="Optional pre-scored content items. When provided, fetching/scoring can be skipped.",
+    )
+
+    # Optional pre-computed aggregates (to be populated by Aggregator before Agent processing)
+    breakdown: SentimentBreakdown | None = Field(
+        default=None, description="Pre-computed sentiment breakdown metrics."
+    )
+    overall_sentiment_score: float | None = Field(
+        default=None,
+        ge=-1,
+        le=1,
+        description="Pre-computed weighted average sentiment score.",
+    )
+    overall_relevance_score: float | None = Field(
+        default=None, ge=0, le=1, description="Pre-computed average relevance score."
+    )
+    overall_impact_score: float | None = Field(
+        default=None, ge=0, le=1, description="Pre-computed average impact score."
+    )
+    top_drivers: list[SentimentContentScore] | None = Field(
+        default=None, description="Pre-computed top drivers sorted by weight."
     )
 
     @field_validator("ticker")
@@ -296,7 +370,9 @@ class SentimentAnalysisInput(BaseModel):
             self.end_time = self.end_time or derived_end
 
         if self.start_time is None or self.end_time is None:
-            raise ValueError("Either time_window or both start_time and end_time must be provided")
+            raise ValueError(
+                "Either time_window or both start_time and end_time must be provided"
+            )
 
         if self.start_time > self.end_time:
             raise ValueError("start_time must be <= end_time")
@@ -312,13 +388,22 @@ class SentimentBreakdown(BaseModel):
     negative: int = Field(ge=0, description="Count of negatively scored items.")
     neutral: int = Field(ge=0, description="Count of neutral scored items.")
     positive_ratio: float | None = Field(
-        default=None, ge=0, le=1, description="Fraction of items with positive sentiment (0..1)."
+        default=None,
+        ge=0,
+        le=1,
+        description="Fraction of items with positive sentiment (0..1).",
     )
     negative_ratio: float | None = Field(
-        default=None, ge=0, le=1, description="Fraction of items with negative sentiment (0..1)."
+        default=None,
+        ge=0,
+        le=1,
+        description="Fraction of items with negative sentiment (0..1).",
     )
     neutral_ratio: float | None = Field(
-        default=None, ge=0, le=1, description="Fraction of items with neutral sentiment (0..1)."
+        default=None,
+        ge=0,
+        le=1,
+        description="Fraction of items with neutral sentiment (0..1).",
     )
 
     @model_validator(mode="after")
@@ -332,20 +417,38 @@ class SentimentBreakdown(BaseModel):
             self.neutral_ratio = self.neutral_ratio or 0.0
             total_ratio = self.positive_ratio + self.negative_ratio + self.neutral_ratio
             if not math.isclose(total_ratio, 0.0, rel_tol=1e-6, abs_tol=1e-6):
-                raise ValueError("Ratios must sum to 0.0 when no content items are present")
+                raise ValueError(
+                    "Ratios must sum to 0.0 when no content items are present"
+                )
             return self
         else:
-            self.positive_ratio = self.positive_ratio if self.positive_ratio is not None else self.positive / total
-            self.negative_ratio = self.negative_ratio if self.negative_ratio is not None else self.negative / total
-            self.neutral_ratio = self.neutral_ratio if self.neutral_ratio is not None else self.neutral / total
+            self.positive_ratio = (
+                self.positive_ratio
+                if self.positive_ratio is not None
+                else self.positive / total
+            )
+            self.negative_ratio = (
+                self.negative_ratio
+                if self.negative_ratio is not None
+                else self.negative / total
+            )
+            self.neutral_ratio = (
+                self.neutral_ratio
+                if self.neutral_ratio is not None
+                else self.neutral / total
+            )
 
         ratios = [self.positive_ratio, self.negative_ratio, self.neutral_ratio]
         if any(value is None for value in ratios):
-            raise ValueError("positive_ratio, negative_ratio, and neutral_ratio must be provided or computable")
+            raise ValueError(
+                "positive_ratio, negative_ratio, and neutral_ratio must be provided or computable"
+            )
 
         total_ratio = sum(ratios)  # type: ignore[arg-type]
         if not math.isclose(total_ratio, 1.0, rel_tol=1e-6, abs_tol=1e-6):
-            raise ValueError("positive_ratio + negative_ratio + neutral_ratio must equal 1.0")
+            raise ValueError(
+                "positive_ratio + negative_ratio + neutral_ratio must equal 1.0"
+            )
         return self
 
 
@@ -355,40 +458,63 @@ class SentimentReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ticker: str = Field(description="Stock ticker symbol (uppercased).")
-    time_window: TimeWindow | None = Field(default=None, description="Categorical time window used for aggregation.")
-    time_period: tuple[datetime, datetime] = Field(description="Start/end timestamps (UTC) used to aggregate content.")
+    time_window: TimeWindow | None = Field(
+        default=None, description="Categorical time window used for aggregation."
+    )
+    time_period: tuple[datetime, datetime] = Field(
+        description="Start/end timestamps (UTC) used to aggregate content."
+    )
     generated_at: datetime = Field(description="When the report was generated (UTC).")
     # Categorical fields
-    market_trend: MarketTrend = Field(description="Overall market sentiment classification for the ticker.")
-    signal: Signal = Field(description="Trade activity signal derived from the aggregated sentiment.")
+    market_trend: MarketTrend = Field(
+        description="Overall market sentiment classification for the ticker."
+    )
+    signal: Signal = Field(
+        description="Trade activity signal derived from the aggregated sentiment."
+    )
 
     # Free-form fields
-    summary: str = Field(description="Natural language summary of the sentiment posture.")
-    reasoning: str = Field(description="Explanation for the summary and scoring decisions.")
+    summary: str = Field(
+        description="Natural language summary of the sentiment posture."
+    )
+    reasoning: str = Field(
+        description="Explanation for the summary and scoring decisions."
+    )
 
-    highlights: list[str] = Field(default_factory=list, description="Merged set of key drivers and risk callouts.")
+    highlights: list[str] = Field(
+        default_factory=list, description="Merged set of key drivers and risk callouts."
+    )
     recommendations: list[str] = Field(
-        default_factory=list, description="Actionable next steps or monitoring instructions."
+        default_factory=list,
+        description="Actionable next steps or monitoring instructions.",
     )
     # Overall scores
     sentiment_score: float = Field(
-        ge=-1, le=1, description="Aggregate sentiment score for the ticker over the time window (-1..1)."
+        ge=-1,
+        le=1,
+        description="Aggregate sentiment score for the ticker over the time window (-1..1).",
     )
     relevance_score: float = Field(
-        ge=0, le=1, description="Aggregate relevance score for the ticker over the time window (0..1)."
+        ge=0,
+        le=1,
+        description="Aggregate relevance score for the ticker over the time window (0..1).",
     )
     impact_score: float = Field(
-        ge=0, le=1, description="Aggregate estimated market impact magnitude over the time window (0..1)."
+        ge=0,
+        le=1,
+        description="Aggregate estimated market impact magnitude over the time window (0..1).",
     )
     breakdown: SentimentBreakdown = Field(
         description="Counts and percentages for positive, negative, and neutral sentiment classifications."
     )
 
     contents: list[SentimentContentScore] = Field(
-        default_factory=list, description="Scored content items backing the aggregated sentiment assessment."
+        default_factory=list,
+        description="Scored content items backing the aggregated sentiment assessment.",
     )
     top_drivers: list[SentimentContentScore] = Field(
-        default_factory=list, description="Highest weighted content items (ordered by relevance_score * impact_score)."
+        default_factory=list,
+        description="Highest weighted content items (ordered by relevance_score * impact_score).",
     )
 
     @field_validator("ticker")
@@ -407,7 +533,9 @@ class SentimentReport(BaseModel):
 
     @field_validator("time_period")
     @classmethod
-    def _ensure_time_period_utc(cls, value: tuple[datetime, datetime]) -> tuple[datetime, datetime]:
+    def _ensure_time_period_utc(
+        cls, value: tuple[datetime, datetime]
+    ) -> tuple[datetime, datetime]:
         """Ensure time period boundaries are timezone-aware UTC."""
 
         start, end = value
