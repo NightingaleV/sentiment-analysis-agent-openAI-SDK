@@ -53,61 +53,33 @@ The AI agent is structured into several key components:
 Tools are Python functions/classes the agent can call. They may be exposed as LLM tools, but they should also work as
 regular Python methods so we can test them deterministically.
 
-### Tool 1: Fetch Scored Content
-**Purpose**: Fetch content for a ticker/time window from configured source.
+### Tool 1: Analyze Sentiment (Master Tool)
+**Purpose**: Orchestrate fetching, scoring, and aggregating sentiment data into a rich context object.
 
-**Input** (conceptual):
-- `ticker`
-- `start_time`, `end_time` (UTC)
-- `limit` (max items returned)
-- `min_relevance_score` (optional filter)
-- `sources` (optional allowlist)
+**Input**:
+- `ticker`: Stock symbol.
+- `time_window`: Categorical horizon ("short", "medium", "long").
+- `limit`: Max items to return (default 50).
 
-**Output** (conceptual):
-- `scored_contents: list[SentimentContentScore]` 
-
-**Responsibilities**:
-- Call each configured data source.
-- Normalize raw items to `SentimentContent`.
-- If the source is pre-scored (Alpha Vantage), map directly to `SentimentContentScore`.
-- Keep raw-only items separate (they must be scored by sentiment scoring pipeline before aggregation/reporting).
-- De-duplicate items (by URL/content_id) across sources.
-- Apply time-window + relevance filtering and enforce `limit`.
-
-**Implementation notes**:
-- Prefer deterministic ordering: sort by `(relevance_score * impact_score)` desc, then `published_at` desc.
-- Time window will allow only for categorical specification ("short term" = last 7 days, "medium term" = last 30 days, "long term" = last 90 days).
-- Cache at two levels:
-  - raw fetch cache (per source/ticker/window) - with certain expiration period depending if the fetch is done on short, medium or long term basis
-  - score cache (per content hash) to avoid re-scoring duplicates
-
-### Tool 2: Aggregate Overall Sentiment Metrics
-**Purpose**: Deterministically aggregate metrics from scored items for report generation.
-
-**Input** (conceptual):
-- `ticker`
-- `start_time`, `end_time` (UTC)
-- `contents: list[SentimentContentScore]`
-
-**Output** (conceptual):
-- Counts and percentages: positive / negative / neutral
-- Weighted aggregate sentiment score (e.g. weight by `relevance_score * impact_score`)
-- Aggregate `relevance_score` and `impact_score` for the time window
-- Top drivers: top-N items by `(relevance_score * impact_score)`
+**Output**:
+- `SentimentAnalysisInput`: A fully populated data model containing:
+    - List of `SentimentContentScore` (raw content + scores).
+    - Pre-computed `SentimentBreakdown` (counts/ratios).
+    - `overall_sentiment_score`, `overall_relevance_score`, `overall_impact_score`.
+    - `top_drivers` (highest weighted content).
 
 **Responsibilities**:
-- Compute numeric aggregates (mean/weighted mean, counts, percentages) deterministically.
-- Identify top drivers (high impact/relevance items) and notable contradictions/dispersion (optional).
-- Provide stable ordering and reproducible results (critical for testing).
+- Call all configured data sources (Alpha Vantage, Bing, etc.).
+- Score raw content using the internal scoring pipeline.
+- Deduplicate items.
+- Aggregate metrics deterministically (weighted averages, breakdowns).
+- Return the "ready-to-use" context for the Agent to summarize.
 
-**LLM usage guidance**:
-- The aggregation tool should not call an LLM.
-- Use an LLM only for synthesizing narrative fields / categorical labels inside the agent.
+### Internal Components (Not LLM-exposed)
+These are helper classes used by the master tool:
+- `SentimentAggregator`: Static logic for computing breakdown and weighted scores.
+- `SentimentScoringPipeline`: ML-based scorer for raw text.
 
-### Optional Internal Tools (Not necessarily LLM-exposed)
-These are helpful for testing and keeping responsibilities small:
-- `FetchRawContentTool`: returns `list[SentimentContent]` for raw sources (RSS/Bing feed)
-- `ScoreContentTool`: converts `list[SentimentContent]` → `list[SentimentContentScore]`
 
 
 ## Data Sources
@@ -174,10 +146,10 @@ The agent should accept either:
 
 ### Execution flow (happy path)
 1. Validate inputs and normalize ticker.
-2. Call **Fetch Content** tool (raw + pre-scored).
-3. Score raw content via scoring service (LLM-backed, mockable).
-4. Call **Aggregate Overall Sentiment Metrics** tool.
-5. Use aggregates + top drivers to synthesize the final `SentimentReport`.
+2. Call **AnalyzeSentimentTool** (Master Tool).
+3. Tool fetches, scores, and aggregates data.
+4. Agent receives fully populated `SentimentAnalysisInput`.
+5. Agent synthesizes the final `SentimentReport` (Summary, Reasoning, Recommendation).
 6. Return `SentimentReport`.
 
 ### Error handling
