@@ -5,15 +5,15 @@ from datetime import datetime, timezone
 import pytest
 from sentiment_analysis_agent.models.sentiment_analysis_models import (
     SentimentContent,
-    SentimentContentScore,
+    SentimentContentScored,
 )
 from sentiment_analysis_agent.pipeline.sentiment_aggregator import SentimentAggregator
 
 
 @pytest.fixture
-def sample_content_score() -> SentimentContentScore:
+def sample_content_score() -> SentimentContentScored:
     """Create a basic scored content item."""
-    return SentimentContentScore(
+    return SentimentContentScored(
         content=SentimentContent(
             ticker="AAPL",
             title="Test Article",
@@ -62,14 +62,14 @@ def test_aggregate_single_item(sample_content_score):
 def test_aggregate_mixed_sentiment():
     """Test weighted aggregation with mixed sentiment items."""
     # Item 1: High positive, High weight (1.0 * 1.0 = 1.0)
-    item1 = SentimentContentScore(
+    item1 = SentimentContentScored(
         content=SentimentContent(ticker="A", title="Good", url="u1"),
         sentiment_score=1.0,
         relevance_score=1.0,
         impact_score=1.0,
     )
     # Item 2: Moderate negative, Low weight (0.5 * 0.2 = 0.1)
-    item2 = SentimentContentScore(
+    item2 = SentimentContentScored(
         content=SentimentContent(ticker="A", title="Bad", url="u2"),
         sentiment_score=-0.5,
         relevance_score=0.5,
@@ -100,21 +100,21 @@ def test_aggregate_mixed_sentiment():
 def test_aggregate_top_drivers_sorting():
     """Test that top drivers are sorted by weight."""
     # Low weight
-    low = SentimentContentScore(
+    low = SentimentContentScored(
         content=SentimentContent(ticker="A", title="Low", url="u1"),
         sentiment_score=0.1,
         relevance_score=0.1,
         impact_score=0.1,  # weight 0.01
     )
     # High weight
-    high = SentimentContentScore(
+    high = SentimentContentScored(
         content=SentimentContent(ticker="A", title="High", url="u2"),
         sentiment_score=0.9,
         relevance_score=0.9,
         impact_score=0.9,  # weight 0.81
     )
     # Medium weight
-    med = SentimentContentScore(
+    med = SentimentContentScored(
         content=SentimentContent(ticker="A", title="Med", url="u3"),
         sentiment_score=0.5,
         relevance_score=0.5,
@@ -132,13 +132,13 @@ def test_aggregate_top_drivers_sorting():
 
 def test_aggregate_zero_weights():
     """Test fallback when all weights are zero."""
-    item1 = SentimentContentScore(
+    item1 = SentimentContentScored(
         content=SentimentContent(ticker="A", title="1", url="u1"),
         sentiment_score=1.0,
         relevance_score=0.0,
         impact_score=0.0,
     )
-    item2 = SentimentContentScore(
+    item2 = SentimentContentScored(
         content=SentimentContent(ticker="A", title="2", url="u2"),
         sentiment_score=0.0,
         relevance_score=0.0,

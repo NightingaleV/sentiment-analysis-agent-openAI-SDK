@@ -86,7 +86,7 @@ All sources support flexible time windows:
 
 ### Content Models
 - **SentimentContent**: Raw content item (title, URL, summary, etc.)
-- **SentimentContentScore**: Scored content with sentiment/relevance/impact metrics
+- **SentimentContentScored**: Scored content with sentiment/relevance/impact metrics
 
 ## Development
 

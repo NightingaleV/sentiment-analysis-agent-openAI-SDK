@@ -1,27 +1,32 @@
 """Quick test script for data sources."""
 
 import asyncio
+import pytest
 from datetime import datetime, timezone
 
-from sentiment_analysis_agent.data_services import AlphaVantageNewsSource, BingNewsRSSSource
+from sentiment_analysis_agent.data_services import (
+    AlphaVantageNewsSource,
+    BingNewsRSSSource,
+)
 from sentiment_analysis_agent.models.sentiment_analysis_models import TimeWindow
 
 
+@pytest.mark.asyncio
 async def test_alpha_vantage():
     """Test Alpha Vantage source with mock data."""
     print("\n=== Testing Alpha Vantage Source ===")
     source = AlphaVantageNewsSource(use_mock=True)
-    
+
     print(f"Source name: {source.source_name}")
     print(f"Returns scored: {source.returns_scored}")
-    
+
     # Test fetch_latest with string horizon (agent-friendly API)
     results = await source.fetch_latest("AAPL", horizon="medium", limit=5)
-    
+
     print(f"\nFetched {len(results)} items")
     if results:
         first = results[0]
-        
+
         type(first)
         print(first)
         print(f"\nFirst item:")
@@ -37,18 +42,19 @@ async def test_alpha_vantage():
         print(f"  Reasoning: {first.reasoning}")
 
 
+@pytest.mark.asyncio
 async def test_bing_news():
     """Test Bing News RSS source."""
     print("\n\n=== Testing Bing News RSS Source ===")
     source = BingNewsRSSSource()
-    
+
     print(f"Source name: {source.source_name}")
     print(f"Returns scored: {source.returns_scored}")
-    
+
     try:
         # Test fetch_latest with string horizon (agent-friendly API)
         results = await source.fetch_latest("AAPL", horizon="short", limit=5)
-        
+
         print(f"\nFetched {len(results)} items")
         if results:
             first = results[0]

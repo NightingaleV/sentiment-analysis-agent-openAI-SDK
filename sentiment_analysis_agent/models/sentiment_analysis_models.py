@@ -238,7 +238,7 @@ class SentimentContent(BaseModel):
         return self
 
 
-class SentimentContentScore(BaseModel):
+class SentimentContentScored(BaseModel):
     """AI-derived scoring metadata tied to a SentimentContent item."""
 
     model_config = ConfigDict(extra="forbid")
@@ -321,7 +321,7 @@ class SentimentAnalysisInput(BaseModel):
         default=None,
         description="Optional allowlist of source identifiers to query (implementation-defined).",
     )
-    contents: list[SentimentContentScore] = Field(
+    contents: list[SentimentContentScored] = Field(
         default_factory=list,
         description="Optional pre-scored content items. When provided, fetching/scoring can be skipped.",
     )
@@ -342,7 +342,7 @@ class SentimentAnalysisInput(BaseModel):
     overall_impact_score: float | None = Field(
         default=None, ge=0, le=1, description="Pre-computed average impact score."
     )
-    top_drivers: list[SentimentContentScore] | None = Field(
+    top_drivers: list[SentimentContentScored] | None = Field(
         default=None, description="Pre-computed top drivers sorted by weight."
     )
 
@@ -508,11 +508,11 @@ class SentimentReport(BaseModel):
         description="Counts and percentages for positive, negative, and neutral sentiment classifications."
     )
 
-    contents: list[SentimentContentScore] = Field(
+    contents: list[SentimentContentScored] = Field(
         default_factory=list,
         description="Scored content items backing the aggregated sentiment assessment.",
     )
-    top_drivers: list[SentimentContentScore] = Field(
+    top_drivers: list[SentimentContentScored] = Field(
         default_factory=list,
         description="Highest weighted content items (ordered by relevance_score * impact_score).",
     )

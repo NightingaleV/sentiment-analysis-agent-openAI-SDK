@@ -3,7 +3,7 @@
 import re
 from datetime import datetime, timezone
 
-from sentiment_analysis_agent.models.sentiment_analysis_models import SentimentContent, SentimentContentScore
+from sentiment_analysis_agent.models.sentiment_analysis_models import SentimentContent, SentimentContentScored
 from sentiment_analysis_agent.pipeline.config import ScoringConfig
 from sentiment_analysis_agent.pipeline.models import ModelFactory
 
@@ -40,7 +40,7 @@ class SentimentScoringPipeline:
         self.config = config or ScoringConfig()
         self._model_strategy = ModelFactory.get_strategy(self.config.model_type, self.config.device)
 
-    async def score(self, content: SentimentContent) -> SentimentContentScore:
+    async def score(self, content: SentimentContent) -> SentimentContentScored:
         """Score a single content item.
 
         Args:
@@ -52,7 +52,7 @@ class SentimentScoringPipeline:
         results = await self.score_batch([content])
         return results[0]
 
-    async def score_batch(self, contents: list[SentimentContent]) -> list[SentimentContentScore]:
+    async def score_batch(self, contents: list[SentimentContent]) -> list[SentimentContentScored]:
         """Score a batch of content items efficiently.
 
         Args:
@@ -83,7 +83,7 @@ class SentimentScoringPipeline:
             reasoning = self._build_reasoning(content, sentiment_result, relevance_score, impact_score)
 
             # Create scored content
-            scored = SentimentContentScore(
+            scored = SentimentContentScored(
                 content=content,
                 sentiment_score=sentiment_result.sentiment_score,
                 relevance_score=relevance_score,

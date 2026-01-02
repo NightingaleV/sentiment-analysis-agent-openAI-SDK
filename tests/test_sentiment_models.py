@@ -9,7 +9,7 @@ from sentiment_analysis_agent.models.sentiment_analysis_models import (
     SentimentAnalysisInput,
     SentimentBreakdown,
     SentimentContent,
-    SentimentContentScore,
+    SentimentContentScored,
     SentimentReport,
     Signal,
     TimeWindow,
@@ -71,7 +71,7 @@ def test_sentiment_breakdown_rejects_invalid_ratio_sum():
 
 def test_sentiment_report_normalizes_fields_to_utc_and_uppercase():
     content = SentimentContent(content_id="1", ticker="aapl", title="Headline")
-    score = SentimentContentScore(
+    score = SentimentContentScored(
         content=content,
         sentiment_score=0.2,
         impact_score=0.7,

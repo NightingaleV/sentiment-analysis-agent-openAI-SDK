@@ -7,7 +7,7 @@ import pytest
 
 from sentiment_analysis_agent.models.sentiment_analysis_models import (
     SentimentContent,
-    SentimentContentScore,
+    SentimentContentScored,
 )
 from sentiment_analysis_agent.tools.analyze_sentiment import AnalyzeSentimentTool
 
@@ -20,7 +20,7 @@ def mock_source_scored():
     source.returns_scored = True
 
     # Mock return value
-    item = SentimentContentScore(
+    item = SentimentContentScored(
         content=SentimentContent(ticker="AAPL", title="Scored 1", url="u1"),
         sentiment_score=0.9,
         relevance_score=0.9,
@@ -53,7 +53,7 @@ def mock_pipeline():
         results = []
         for c in contents:
             results.append(
-                SentimentContentScore(
+                SentimentContentScored(
                     content=c,
                     sentiment_score=-0.5,
                     relevance_score=0.5,

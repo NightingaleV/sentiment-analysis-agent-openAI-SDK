@@ -2,7 +2,7 @@
 
 from sentiment_analysis_agent.models.sentiment_analysis_models import (
     SentimentBreakdown,
-    SentimentContentScore,
+    SentimentContentScored,
 )
 
 
@@ -10,7 +10,7 @@ class SentimentAggregator:
     """Aggregates sentiment metrics from a list of scored content items."""
 
     @staticmethod
-    def aggregate(contents: list[SentimentContentScore]) -> dict:
+    def aggregate(contents: list[SentimentContentScored]) -> dict:
         """Compute aggregate metrics from a list of scored items.
 
         Args:

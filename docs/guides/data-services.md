@@ -28,7 +28,7 @@ source = AlphaVantageNewsSource(use_mock=True)
 # Fetch latest news with string-based time horizon
 results = await source.fetch_latest("AAPL", horizon="medium", limit=10)
 
-# Results are SentimentContentScore objects
+# Results are SentimentContentScored objects
 for item in results:
     print(f"Title: {item.content.title}")
     print(f"Sentiment: {item.sentiment_score}")  # -1 to 1
@@ -79,7 +79,7 @@ results = await source.fetch_latest("AAPL", horizon="MEDIUM-TERM")
 ### Alpha Vantage News Sentiment
 
 **Type:** Pre-scored  
-**Returns:** `list[SentimentContentScore]`
+**Returns:** `list[SentimentContentScored]`
 
 Features:
 - Pre-scored sentiment, relevance, and impact scores
@@ -126,7 +126,7 @@ Fetch latest content using categorical time window.
 
 **Returns:**
 - `RawSentimentSource`: `list[SentimentContent]`
-- `ScoredSentimentSource`: `list[SentimentContentScore]`
+- `ScoredSentimentSource`: `list[SentimentContentScored]`
 
 ### fetch()
 
@@ -158,10 +158,10 @@ content = SentimentContent(
 )
 ```
 
-### SentimentContentScore (Pre-scored)
+### SentimentContentScored (Pre-scored)
 
 ```python
-scored = SentimentContentScore(
+scored = SentimentContentScored(
     content=content,  # SentimentContent object
     sentiment_score=0.5,  # -1 (bearish) to 1 (bullish)
     relevance_score=0.8,  # 0 (not relevant) to 1 (highly relevant)

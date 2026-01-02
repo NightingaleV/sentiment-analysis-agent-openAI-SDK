@@ -30,12 +30,12 @@ All sources, tools, and agents must use the Pydantic models in `sentiment_analys
 
 Key types:
 - `SentimentContent`: raw content item (headline/article/post)
-- `SentimentContentScore`: a scored content item (polarity/relevance/impact + reasoning)
+- `SentimentContentScored`: a scored content item (polarity/relevance/impact + reasoning)
 - `SentimentReport`: aggregated sentiment report for a ticker/time window
 
 ## Architecture Overview
 The system is intentionally split into two phases:
-1. **Fetch/normalize/score content** → `list[SentimentContentScore]`
+1. **Fetch/normalize/score content** → `list[SentimentContentScored]`
 2. **Aggregate overall sentiment metrics** → deterministic aggregates used by the agent to build `SentimentReport`
 
 This keeps the agent simple and makes the pipeline reusable:
@@ -63,7 +63,7 @@ regular Python methods so we can test them deterministically.
 
 **Output**:
 - `SentimentAnalysisInput`: A fully populated data model containing:
-    - List of `SentimentContentScore` (raw content + scores).
+    - List of `SentimentContentScored` (raw content + scores).
     - Pre-computed `SentimentBreakdown` (counts/ratios).
     - `overall_sentiment_score`, `overall_relevance_score`, `overall_impact_score`.
     - `top_drivers` (highest weighted content).
@@ -87,7 +87,7 @@ Each data source should be implemented as a separate class that adheres to a com
 remove sources without changing the agent orchestration.
 
 ### Required interface (conceptual)
-- `fetch(ticker, start_time, end_time, limit) -> list[SentimentContent] | list[SentimentContentScore]`
+- `fetch(ticker, start_time, end_time, limit) -> list[SentimentContent] | list[SentimentContentScored]`
 - `source_name: str`
 - `returns_scored: bool` (or separate subclasses for raw vs scored sources)
 
@@ -96,7 +96,7 @@ remove sources without changing the agent orchestration.
 - When `limit` is set: return top N articles with the highest relevance score to the given ticker.
 - Map Alpha Vantage items to:
   - `SentimentContent` (title/summary/url/published_at/source metadata)
-  - `SentimentContentScore` (sentiment/relevance + optional reasoning/confidence/model_name)
+  - `SentimentContentScored` (sentiment/relevance + optional reasoning/confidence/model_name)
 
 ### Bing News Search RSS feed (raw-only)
 We will also analyze news from Bing News Search:
@@ -122,7 +122,7 @@ Headlines-only (easy to scrape):
 ## Sentiment Scoring Pipeline (Raw → Scored)
 For sources that provide only raw content:
 - Input: a single `SentimentContent`
-- Output: `SentimentContentScore`
+- Output: `SentimentContentScored`
 
 Scoring fields:
 - `sentiment_score`: -1..1 (bearish..bullish)
@@ -159,9 +159,9 @@ The agent should accept either:
 
 ## Implementation Plan
 
-1. **Data models & config**: Confirm sentiment_analysis.py matches SPECS fields (SentimentContent, SentimentContentScore, SentimentReport), add any missing enums/time-window helpers, and ensure UTC handling + type-safe inputs.
+1. **Data models & config**: Confirm sentiment_analysis.py matches SPECS fields (SentimentContent, SentimentContentScored, SentimentReport), add any missing enums/time-window helpers, and ensure UTC handling + type-safe inputs.
 2. **Data source layer**: Define a base source interface (source_name, returns_scored, fetch signature) and implement Alpha Vantage (using alpha_vantage_mock.py for dev) plus Bing RSS/headlines fetchers with normalization, dedupe by URL/content_id, and time-window filters; wire caching knobs (per ticker/window).
-3. **Scoring pipeline**: Build FetchRawContentTool and ScoreContentTool to convert raw SentimentContent → SentimentContentScore with pluggable sentiment model (LLM-backed or mock), apply per-content hash cache, and allow relevance/impact weighting config.
+3. **Scoring pipeline**: Build FetchRawContentTool and ScoreContentTool to convert raw SentimentContent → SentimentContentScored with pluggable sentiment model (LLM-backed or mock), apply per-content hash cache, and allow relevance/impact weighting config.
 4. **Aggregation tool**: Implement deterministic metric aggregation (counts/percentages, weighted sentiment, relevance/impact aggregates, top drivers ordered by relevance*impact, optional dispersion flags) without LLM usage.
 5. **Agent orchestration**: Create the Sentiment Analysis Agent (OpenAI Agents SDK) that validates inputs, fetches+scores content, calls the aggregator, then synthesizes narrative fields into a SentimentReport with graceful degradation/retries and structured outputs only.
 

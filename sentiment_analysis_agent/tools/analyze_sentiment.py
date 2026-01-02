@@ -4,7 +4,7 @@ from sentiment_analysis_agent.data_services.base import BaseSentimentSource
 from sentiment_analysis_agent.models.sentiment_analysis_models import (
     SentimentAnalysisInput,
     SentimentContent,
-    SentimentContentScore,
+    SentimentContentScored,
     TimeWindow,
 )
 from sentiment_analysis_agent.pipeline.sentiment_aggregator import SentimentAggregator
@@ -92,7 +92,7 @@ class AnalyzeSentimentTool:
     async def _fetch_all(self, ticker, start_time, end_time, limit):
         """Helper to fetch from all sources safely."""
         raw_contents: list[SentimentContent] = []
-        scored_contents: list[SentimentContentScore] = []
+        scored_contents: list[SentimentContentScored] = []
 
         for source in self.sources:
             try:

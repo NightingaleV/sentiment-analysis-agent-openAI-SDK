@@ -9,7 +9,7 @@ from sentiment_analysis_agent.data_services.base import ScoredSentimentSource
 from sentiment_analysis_agent.data_services.mocks.alpha_vantage_mock import MOCK_NEWS_SENTIMENT_RESPONSE
 from sentiment_analysis_agent.models.sentiment_analysis_models import (
     SentimentContent,
-    SentimentContentScore,
+    SentimentContentScored,
     SourceType,
     TimeWindow,
 )
@@ -45,7 +45,7 @@ class AlphaVantageNewsSource(ScoredSentimentSource):
 
     async def fetch(
         self, ticker: str, start_time: datetime, end_time: datetime, limit: int | None = None
-    ) -> list[SentimentContentScore]:
+    ) -> list[SentimentContentScored]:
         """Fetch pre-scored news articles from Alpha Vantage.
 
         Args:
@@ -108,7 +108,7 @@ class AlphaVantageNewsSource(ScoredSentimentSource):
 
     def _parse_response(
         self, raw_data: dict, ticker: str, start_time: datetime, end_time: datetime
-    ) -> list[SentimentContentScore]:
+    ) -> list[SentimentContentScored]:
         """Parse Alpha Vantage response into SentimentContentScore objects.
 
         Args:
@@ -120,7 +120,7 @@ class AlphaVantageNewsSource(ScoredSentimentSource):
         Returns:
             List of parsed and filtered sentiment content scores
         """
-        scored_items: list[SentimentContentScore] = []
+        scored_items: list[SentimentContentScored] = []
         collected_at = datetime.now(timezone.utc)
 
         for article in raw_data.get("feed", []):
@@ -165,7 +165,7 @@ class AlphaVantageNewsSource(ScoredSentimentSource):
             # Use relevance as proxy (can be refined later)
             impact_score = relevance_score * 0.8  # Conservative estimate
 
-            scored_item = SentimentContentScore(
+            scored_item = SentimentContentScored(
                 content=content,
                 sentiment_score=max(-1.0, min(1.0, sentiment_score)),  # Clamp to [-1, 1]
                 impact_score=max(0.0, min(1.0, impact_score)),  # Clamp to [0, 1]
