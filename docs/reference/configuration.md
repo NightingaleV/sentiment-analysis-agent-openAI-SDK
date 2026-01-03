@@ -17,6 +17,25 @@ This document describes all configuration options for the sentiment analysis age
   USE_MOCKS=true   # Use mock data (default)
   ```
 
+#### `USE_LLM_MOCKS`
+- **Type**: Boolean (string)
+- **Default**: `"true"`
+- **Description**: When `true`, the OpenAI agent adapter returns deterministic mock narratives instead of calling the API.
+- **Example**:
+  ```bash
+  USE_LLM_MOCKS=false  # Use real OpenAI calls
+  USE_LLM_MOCKS=true   # Deterministic mock narratives (default)
+  ```
+
+#### `OPENAI_MODEL`
+- **Type**: String
+- **Default**: `"gpt-4.1-mini"`
+- **Description**: Model used by the OpenAI Agents SDK when `USE_LLM_MOCKS=false`.
+- **Example**:
+  ```bash
+  OPENAI_MODEL=gpt-4.1-mini
+  ```
+
 ### Data Source API Keys
 
 #### `ALPHA_VANTAGE_API_KEY`
@@ -30,16 +49,36 @@ This document describes all configuration options for the sentiment analysis age
   ALPHA_VANTAGE_API_KEY=your_api_key_here
   ```
 
+#### `OPENAI_API_KEY`
+- **Type**: String
+- **Default**: None
+- **Required**: Only when `USE_LLM_MOCKS=false`
+- **Description**: API key for OpenAI Agents SDK narrative generation
+- **Where to get**: [OpenAI API Keys](https://platform.openai.com/api-keys)
+- **Example**:
+  ```bash
+  OPENAI_API_KEY=sk-...
+  ```
+
 ## Configuration File
 
 Configuration is managed through `sentiment_analysis_agent/config.py`:
 
 ```python
-from sentiment_analysis_agent.config import USE_MOCKS, ALPHA_VANTAGE_API_KEY
+from sentiment_analysis_agent.config import (
+    ALPHA_VANTAGE_API_KEY,
+    OPENAI_API_KEY,
+    OPENAI_MODEL,
+    USE_LLM_MOCKS,
+    USE_MOCKS,
+)
 
 # Check current configuration
 print(f"Using mocks: {USE_MOCKS}")
-print(f"API key configured: {bool(ALPHA_VANTAGE_API_KEY)}")
+print(f"Using LLM mocks: {USE_LLM_MOCKS}")
+print(f"OpenAI model: {OPENAI_MODEL}")
+print(f"Alpha Vantage key configured: {bool(ALPHA_VANTAGE_API_KEY)}")
+print(f"OpenAI key configured: {bool(OPENAI_API_KEY)}")
 ```
 
 ## Development vs Production

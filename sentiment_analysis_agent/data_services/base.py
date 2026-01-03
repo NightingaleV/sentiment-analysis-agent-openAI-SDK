@@ -5,7 +5,7 @@ from datetime import datetime
 
 from sentiment_analysis_agent.models.sentiment_analysis_models import (
     SentimentContent,
-    SentimentContentScore,
+    SentimentContentScored,
     TimeWindow,
 )
 
@@ -41,7 +41,7 @@ class BaseSentimentSource(ABC):
     @abstractmethod
     async def fetch(
         self, ticker: str, start_time: datetime, end_time: datetime, limit: int | None = None
-    ) -> list[SentimentContent] | list[SentimentContentScore]:
+    ) -> list[SentimentContent] | list[SentimentContentScored]:
         """Fetch sentiment content for a ticker within a time window.
 
         Args:
@@ -61,7 +61,7 @@ class BaseSentimentSource(ABC):
 
     async def fetch_latest(
         self, ticker: str, horizon: TimeWindow | str = TimeWindow.SHORT_TERM, limit: int | None = None
-    ) -> list[SentimentContent] | list[SentimentContentScore]:
+    ) -> list[SentimentContent] | list[SentimentContentScored]:
         """Fetch latest sentiment content using TimeWindow horizon.
 
         Args:
@@ -127,13 +127,13 @@ class ScoredSentimentSource(BaseSentimentSource):
     @abstractmethod
     async def fetch(
         self, ticker: str, start_time: datetime, end_time: datetime, limit: int | None = None
-    ) -> list[SentimentContentScore]:
+    ) -> list[SentimentContentScored]:
         """Fetch pre-scored sentiment content."""
         pass
 
     async def fetch_latest(
         self, ticker: str, horizon: TimeWindow | str = TimeWindow.SHORT_TERM, limit: int | None = None
-    ) -> list[SentimentContentScore]:
+    ) -> list[SentimentContentScored]:
         """Fetch latest sentiment content using TimeWindow horizon.
 
         Args:

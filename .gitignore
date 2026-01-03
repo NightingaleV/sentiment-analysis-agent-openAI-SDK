@@ -1,4 +1,6 @@
+.codex/**
 # Byte-compiled / optimized / DLL files
+.opencode/**
 __pycache__/
 *.py[codz]
 *$py.class
